@@ -1,0 +1,46 @@
+{
+    "name": "clinically/laravel-lyrebird",
+    "description": "Two-way Lyrebird Health AI scribe integration for Laravel: Secure Launch V2 and the Partner API (appointment push + note write-back).",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.4",
+        "ext-openssl": "*",
+        "illuminate/support": "^12.0|^13.0",
+        "illuminate/http": "^12.0|^13.0",
+        "illuminate/contracts": "^12.0|^13.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^10.0|^11.0",
+        "pestphp/pest": "^3.0",
+        "pestphp/pest-plugin-laravel": "^3.0",
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.0"
+    },
+    "autoload": {
+        "psr-4": { "Clinically\\Lyrebird\\": "src/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "Clinically\\Lyrebird\\Tests\\": "tests/" }
+    },
+    "extra": {
+        "laravel": {
+            "providers": ["Clinically\\Lyrebird\\LyrebirdServiceProvider"],
+            "aliases": {
+                "Lyrebird": "Clinically\\Lyrebird\\Facades\\Lyrebird"
+            }
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "analyse": "phpstan analyse --memory-limit=1G",
+        "format": "pint"
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
