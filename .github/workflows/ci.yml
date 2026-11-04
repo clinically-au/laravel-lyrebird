@@ -1,64 +1,58 @@
 name: CI
 
+# Copy this file into a Clinically PHP package as `.github/workflows/ci.yml`,
+# or let scripts/onboard-package.sh generate it with the right values filled in.
+#
+# It delegates all quality checks to the shared reusable workflow in
+# clinically-au/.github, so CI stays consistent across every package and is
+# updated centrally (callers track @main).
+#
+# The `push` trigger is REQUIRED, not optional: a run on the DEFAULT BRANCH is
+# what seeds the shared Pint/Rector/PHPStan caches that every PR's first run
+# restores from (GitHub scopes caches so a PR can restore only its own branch's
+# or the default branch's).
+#
+# `push.branches` must name THIS REPO'S default branch. onboard-package.sh
+# rewrites the line below from the repo's real `default_branch`; if you are
+# copying this file by hand, change `main` to `master` where that applies
+# (`messaging`, `notifyre-fax`, `notifyre-sms` are on `master`). Getting it
+# wrong is not a cosmetic error: the caller never triggers, no check ever
+# reports, and once `ci=quality` is set the org ruleset blocks every PR forever
+# on contexts that will never arrive.
+#
+# `pull_request` is deliberately UNFILTERED. A caller lives in the repo it
+# guards, so every PR in that repo should be gated regardless of its base
+# branch — and an unfiltered trigger cannot be wrong about the branch name.
+
 on:
   push:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: read
-
-concurrency:
-  group: quality-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  static:
-    name: quality / static
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-        with:
-          persist-credentials: false
-      - uses: shivammathur/setup-php@bf6b4fbd49ca58e4608c9c89fba0b8d90bd2a39f # 2.35.5
-        with:
-          php-version: '8.5'
-          tools: composer:v2
-          coverage: none
-      - run: composer install --no-interaction --no-progress --prefer-dist
-      - run: vendor/bin/pint --test
-      - run: composer analyse
-
-  tests:
-    name: quality / tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-        with:
-          persist-credentials: false
-      - uses: shivammathur/setup-php@bf6b4fbd49ca58e4608c9c89fba0b8d90bd2a39f # 2.35.5
-        with:
-          php-version: '8.5'
-          tools: composer:v2
-          coverage: none
-      - run: composer install --no-interaction --no-progress --prefer-dist
-      - name: Run tests
-        run: composer test -- --log-junit=build/junit.xml
-      - name: Enforce test-count floor
-        env:
-          MIN_TESTS: '11'
-        run: |
-          # The dollar sign in the single-quoted program belongs to PHP.
-          # shellcheck disable=SC2016
-          count=$(php -r '$x = simplexml_load_file("build/junit.xml"); echo (int) $x->testsuite[0]["tests"];')
-          echo "Pest ran $count tests (floor $MIN_TESTS)"
-          test "$count" -ge "$MIN_TESTS"
-      - name: Upload JUnit report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: junit-php-8.5
-          path: build/junit.xml
-          if-no-files-found: error
+  quality:
+    # Least privilege: read the repo, and read commit statuses for the Forgejo
+    # tag gate (a repo with ci_runner=forgejo publishes only after the
+    # clinically-forgejo-ci App passed the tagged commit).
+    permissions:
+      contents: read
+      statuses: read
+    uses: clinically-au/.github/.github/workflows/quality.yml@main
+    secrets: inherit
+    with:
+      # Tools that MUST stay configured. A listed tool with no config fails the
+      # job, so a repo cannot silently drop out of the cohort. Omit a tool to
+      # leave it skip-if-absent while it is still being rolled out.
+      require: pint,phpstan,pest
+      # Test-count floor. Seed from a real local run, then leave headroom.
+      min-tests: 11
+      # Optional:
+      # php-version: '8.5'
+      # node: true                      # packages that build frontend assets
+      # typst: true                     # packages that compile real Typst documents
+      # system-packages: poppler-utils qpdf
+      # test-args: --exclude-testsuite=Integration
+      #   ^ ONLY when `composer test` is array form. String-form scripts are
+      #     invoked through Composer and keep their own flags, so a repo like
+      #     laravel-whatsapp needs nothing here — its --exclude-group=integration
+      #     already applies.
